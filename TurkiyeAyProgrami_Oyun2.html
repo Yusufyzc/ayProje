@@ -1013,16 +1013,6 @@ class MoonLandingScene extends Phaser.Scene {
     this.cursors = this.input.keyboard.createCursorKeys();
     this.wasd = this.input.keyboard.addKeys({left:'A', right:'D', up:'W', radar:'R'});
     
-    // YENİ EKLENEN: Ay Rüzgarları / Anomalileri
-    this.time.addEvent({
-      delay: 2500, loop: true,
-      callback: () => {
-        if(!this.landed && this.rkt.y > 200) {
-           let force = Phaser.Math.Between(-60, 60);
-           this.rkt.body.velocity.x += force;
-        }
-      }
-    });
 
     this.cameras.main.fadeIn(800, 0, 0, 0);
   }
@@ -1104,12 +1094,19 @@ class MoonLandingScene extends Phaser.Scene {
     if(!this.activeControll || this.landed) return;
     const dt = delta/1000;
 
-    // YENİ EKLENEN: Radar Mantığı (R tuşu)
-    if (this.wasd.radar.isDown && !this.radarActive && this.fuel > 5) {
+    // YENİ EKLENEN: Radar Mantığı (R tuşu - MALİYETSİZ)
+    if (this.wasd.radar.isDown && !this.radarActive) {
         this.radarActive = true;
-        this.fuel -= 5; // Radar 5 birim yakıt yer
-        this.tweens.add({targets: [this.padVisual, this.padText], alpha: 1, duration: 1000});
-        this.cameras.main.flash(500, 0, 255, 136, 0.2); // Yeşil flaş
+        
+        // Varsa yanıp sönme animasyonunu iptal et
+        if(this.tweens) this.tweens.killTweensOf(this.padVisual); 
+        
+        // Hedef alanı tamamen ve kalıcı olarak aydınlat
+        this.padVisual.setAlpha(1); 
+        this.padText.setAlpha(1);
+        
+        // Yeşil radar tarama efekti
+        this.cameras.main.flash(500, 0, 255, 136, 0.2); 
     }
 
     if(this.fuel > 0) {

@@ -1,0 +1,1275 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Türkiye Ay Programı — Lunar Mission</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/phaser/3.60.0/phaser.min.js"></script>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700;900&family=Exo+2:wght@300;400;600&display=swap');
+*{box-sizing:border-box;margin:0;padding:0}
+html,body{width:100%;height:100%;background:#020408;overflow:hidden;font-family:'Exo 2',sans-serif}
+#game-container{width:100vw;height:100vh;display:flex;align-items:center;justify-content:center}
+#game-container canvas{display:block}
+</style>
+</head>
+<body>
+<div id="game-container"></div>
+<script>
+/* ── BOOT ─────────────────────────────────────────────────── */
+class BootScene extends Phaser.Scene {
+  constructor(){super({key:'BootScene'})}
+  preload(){
+    const w=this.scale.width,h=this.scale.height;
+    const barBg=this.add.rectangle(w/2,h/2+60,400,8,0x1a2a3a);
+    const bar=this.add.rectangle(w/2-200,h/2+60,0,8,0x00ff88).setOrigin(0,0.5);
+    this.add.text(w/2,h/2,'TÜRKİYE AY PROGRAMI',{fontFamily:'Orbitron,monospace',fontSize:'28px',fontStyle:'bold',color:'#e8f0f5',letterSpacing:6}).setOrigin(0.5);
+    this.add.text(w/2,h/2+36,'YÜKLENİYOR...',{fontFamily:'Exo 2,sans-serif',fontSize:'13px',color:'#00ff88',letterSpacing:4}).setOrigin(0.5);
+    this.load.on('progress',v=>{bar.width=400*v});
+    this.load.on('complete',()=>this.buildAssets());
+  }
+  buildAssets(){
+    const mk=(fn,key,w,h)=>{const g=this.make.graphics({x:0,y:0,add:false});fn(g);g.generateTexture(key,w,h);g.destroy()};
+    // Roket
+    mk(g=>{
+      g.fillStyle(0xccddee);g.fillRect(18,50,24,60);
+      g.fillStyle(0xe8f0f5);g.fillTriangle(18,50,42,50,30,8);
+      g.fillStyle(0xE30A17);g.fillTriangle(18,110,4,130,18,120);g.fillTriangle(42,110,56,130,42,120);
+      g.fillStyle(0xE30A17);g.fillRect(18,66,24,14);
+      g.fillStyle(0xffffff,0.9);g.fillCircle(30,58,4);
+    },'rocket',60,135);
+    // Ay
+    mk(g=>{
+      g.fillStyle(0x8a9ba8);g.fillCircle(80,80,78);
+      g.fillStyle(0x6a7b88);g.fillCircle(50,55,14);g.fillCircle(100,100,10);g.fillCircle(68,118,7);g.fillCircle(108,48,11);g.fillCircle(35,95,8);
+      g.fillStyle(0x9aabb8,0.4);g.fillCircle(60,70,20);
+    },'moon',160,160);
+    // Dünya
+    mk(g=>{
+      g.fillStyle(0x1a5276);g.fillCircle(60,60,58);
+      g.fillStyle(0x27ae60);g.fillEllipse(38,48,28,38);g.fillEllipse(68,38,38,22);g.fillEllipse(50,72,20,18);
+      g.fillStyle(0xffffff,0.25);g.fillEllipse(28,28,48,14);g.fillEllipse(55,18,30,10);
+    },'earth',120,120);
+    // Alev
+    mk(g=>{
+      g.fillStyle(0xff5500);g.fillTriangle(0,0,20,0,10,42);
+      g.fillStyle(0xffcc00,0.8);g.fillTriangle(4,0,16,0,10,26);
+      g.fillStyle(0xffffff,0.4);g.fillTriangle(7,0,13,0,10,14);
+    },'flame',20,42);
+    // Bulut
+    mk(g=>{g.fillStyle(0xffffff,0.18);g.fillEllipse(40,20,80,38);},'cloud',80,40);
+    
+    // YENİ EKLENEN: Uydu (TÜRKSAT) çizimi
+    mk(g=>{g.fillStyle(0x224488);g.fillRect(0,10,40,20);g.fillStyle(0x88aabb);g.fillRect(10,0,20,40);g.fillStyle(0xffaa00);g.fillCircle(20,20,6);},'satellite',40,40);
+
+    // Butonlar
+    mk(g=>{g.fillStyle(0x0a1f35);g.fillRoundedRect(0,0,280,58,6);g.lineStyle(1.5,0x00ff88);g.strokeRoundedRect(0,0,280,58,6);},'btn_n',280,58);
+    mk(g=>{g.fillStyle(0x00ff88,0.14);g.fillRoundedRect(0,0,280,58,6);g.lineStyle(1.5,0x00ff88);g.strokeRoundedRect(0,0,280,58,6);},'btn_h',280,58);
+    this.scene.start('MenuScene');
+  }
+}
+
+/* ── HELPERS ──────────────────────────────────────────────── */
+function stars(scene,count=200,maxY=null){
+  const w=scene.scale.width,h=scene.scale.height;
+  for(let i=0;i<count;i++){
+    const x=Phaser.Math.Between(0,w),y=Phaser.Math.Between(0,maxY||h);
+    const r=Phaser.Math.FloatBetween(0.3,1.8),a=Phaser.Math.FloatBetween(0.3,1);
+    const s=scene.add.circle(x,y,r,0xffffff,a);
+    if(Math.random()>.6)scene.tweens.add({targets:s,alpha:0.05,duration:Phaser.Math.Between(700,2800),yoyo:true,repeat:-1,delay:Phaser.Math.Between(0,1800)});
+  }
+}
+function makeBtn(scene,x,y,label,cb){
+  const btn=scene.add.image(x,y,'btn_n').setInteractive({useHandCursor:true});
+  const txt=scene.add.text(x,y,label,{fontFamily:'Orbitron,monospace',fontSize:'15px',fontStyle:'bold',color:'#00ff88',letterSpacing:4}).setOrigin(0.5);
+  btn.on('pointerover',()=>{btn.setTexture('btn_h');txt.setColor('#ffffff');scene.tweens.add({targets:[btn,txt],scaleX:1.04,scaleY:1.04,duration:100})});
+  btn.on('pointerout',()=>{btn.setTexture('btn_n');txt.setColor('#00ff88');scene.tweens.add({targets:[btn,txt],scaleX:1,scaleY:1,duration:100})});
+  btn.on('pointerdown',cb);
+}
+function fadeNext(scene,key,data={}){
+  scene.cameras.main.fadeOut(600,0,0,0);
+  scene.cameras.main.once('camerafadeoutcomplete',()=>scene.scene.start(key,data));
+}
+function hudPanel(scene,x,y,w,h,color=0x00ff88){
+  const g=scene.add.graphics();
+  g.fillStyle(0x050d1a,0.9);g.fillRoundedRect(x,y,w,h,8);
+  g.lineStyle(1,color,0.4);g.strokeRoundedRect(x,y,w,h,8);
+  return g;
+}
+
+/* ── MENU ─────────────────────────────────────────────────── */
+class MenuScene extends Phaser.Scene {
+  constructor(){super({key:'MenuScene'})}
+  create(){
+    const w=this.scale.width,h=this.scale.height;
+    stars(this,200);
+    const earth=this.add.image(w*.1,h*.85,'earth').setScale(2.6).setAlpha(.85);
+    this.tweens.add({targets:earth,angle:360,duration:80000,repeat:-1});
+    const moon=this.add.image(w*.88,h*.18,'moon').setScale(1.5).setAlpha(.9);
+    this.tweens.add({targets:moon,y:h*.18-10,duration:3800,yoyo:true,repeat:-1,ease:'Sine.easeInOut'});
+    const rkt=this.add.image(w*.5,h*.52,'rocket').setScale(2);
+    const flm=this.add.image(w*.5,h*.52+87,'flame').setScale(1.5).setAlpha(.9);
+    this.tweens.add({targets:[rkt,flm],y:'+=10',duration:2400,yoyo:true,repeat:-1,ease:'Sine.easeInOut'});
+    this.tweens.add({targets:flm,scaleY:1.15,alpha:.6,duration:160,yoyo:true,repeat:-1});
+    
+    this.add.text(w/2,h*.1,'TÜRKİYE',{fontFamily:'Orbitron,monospace',fontSize:'54px',fontStyle:'bold',color:'#E30A17',letterSpacing:14,stroke:'#000',strokeThickness:3}).setOrigin(.5);
+    this.add.text(w/2,h*.19,'AY PROGRAMI',{fontFamily:'Orbitron,monospace',fontSize:'36px',fontStyle:'bold',color:'#e8f0f5',letterSpacing:8,stroke:'#000',strokeThickness:2}).setOrigin(.5);
+    this.add.text(w/2,h*.27,'LUNAR MISSION',{fontFamily:'Exo 2,sans-serif',fontSize:'14px',color:'#00ff88',letterSpacing:10,alpha:.8}).setOrigin(.5);
+    const ln=this.add.graphics();ln.lineStyle(1,0x00ff88,.3);ln.lineBetween(w/2-180,h*.3,w/2+180,h*.3);
+    
+    makeBtn(this,w/2,h*.76,'GÖREVE BAŞLA',()=>fadeNext(this,'LaunchScene'));
+    this.add.text(w/2,h*.93,'Türkiye\'nin Ay Programı  ·  Bilimsel Keşif Oyunu  ·  Bölüm 1',{fontFamily:'Exo 2,sans-serif',fontSize:'11px',color:'#2a4a6a',letterSpacing:2}).setOrigin(.5);
+    this.cameras.main.fadeIn(800,0,0,0);
+  }
+}
+
+/* ── LAUNCH ───────────────────────────────────────────────── */
+class LaunchScene extends Phaser.Scene {
+  constructor(){super({key:'LaunchScene'})}
+  
+  create(){
+    const w=this.scale.width,h=this.scale.height;
+    this.launched=false;
+    this.fuel=100;
+    
+    // YENİ EKLENEN: İtki Sistemleri ve Fırlatma Üsleri Bağlantısı
+    this.engines = [
+      { id: 'KİMYASAL', name: 'KİMYASAL MOTOR', desc: 'Ağır yükler için uygun.' },
+      { id: 'HİBRİT', name: 'MİLLİ HİBRİT İTKİ', desc: 'Gelişmiş manevra kabiliyeti.' }
+    ];
+    this.currentEngineIdx = 0;
+
+    this.sites = [
+      { id: 'SOMALİ', name: 'SOMALİ EKVATOR ÜSSÜ', optAngle: 90, desc: 'Ekvatoral Dönüş Avantajı', reqEngine: 'KİMYASAL' },
+      { id: 'ANADOLU', name: 'ANADOLU MERKEZ ÜSSÜ', optAngle: 85, desc: 'Orta Enlem - Yüksek Direnç', reqEngine: 'HİBRİT' }
+    ];
+    this.currentSiteIdx = 0;
+    
+    this.launchAngle=90;
+    this.thrust=100; 
+
+    this.weather=this.pickWeather();
+    
+    const sky=this.add.graphics();
+    sky.fillGradientStyle(0x060e1e,0x060e1e,0x0d2040,0x1a3a6a,1);
+    sky.fillRect(0,0,w,h);
+    stars(this,90,h*.55);
+    
+    this.gnd=this.add.graphics();
+    this.drawGround(w,h);
+
+    this.rkt=this.add.image(w*.5,h*.625,'rocket').setScale(2.2);
+    this.flm=this.add.image(w*.5,h*.625+93,'flame').setScale(1.8).setVisible(false);
+    
+    this.add.text(w/2,28,'BÖLÜM 1  ·  FIRLATMA',{fontFamily:'Orbitron,monospace',fontSize:'13px',color:'#00ff88',letterSpacing:6}).setOrigin(.5);
+    
+    this.buildHUD(w,h);
+    this.showWeatherPopup(w,h);
+    this.cameras.main.fadeIn(650,0,0,0);
+  }
+
+  drawGround(w, h) {
+    this.gnd.clear();
+    this.gnd.fillStyle(this.currentSiteIdx === 0 ? 0x1e1610 : 0x121e12); 
+    this.gnd.fillRect(0,h*.73,w,h*.27);
+    this.gnd.fillStyle(0x0a160a);
+    
+    this.gnd.fillRect(w*.08,h*.6,130,h*.13);this.gnd.fillRect(w*.07,h*.56,22,h*.04);
+    this.gnd.fillRect(w*.72,h*.65,90,h*.08);this.gnd.fillRect(w*.77,h*.62,14,h*.03);
+    this.gnd.fillRect(w*.83,h*.64,65,h*.09);this.gnd.fillRect(w*.86,h*.62,8,h*.02);
+    
+    this.gnd.fillStyle(0x3a4a5a);this.gnd.fillRect(w*.5-65,h*.72,130,16);this.gnd.fillRect(w*.5-9,h*.73,18,22);
+    this.gnd.lineStyle(3,0x2a3a4a,1);this.gnd.lineBetween(w*.5-55,h*.72,w*.5-12,h*.745);this.gnd.lineBetween(w*.5+55,h*.72,w*.5+12,h*.745);
+    this.gnd.fillStyle(0xffcc00,.7);this.gnd.fillCircle(w*.07+11,h*.55,5);
+  }
+
+  pickWeather(){
+    const list=[
+      {label:'AÇIK HAVA',short:'AÇIK',col:'#00ff88',fm:0,ar:10},
+      {label:'BULUTLU',short:'BULUTLU',col:'#f0c040',fm:5,ar:5},
+      {label:'RÜZGARLI',short:'RÜZGARLI',col:'#ff8800',fm:15,ar:2},
+    ];
+    return list[Phaser.Math.Between(0,2)];
+  }
+
+  buildHUD(w,h){
+    hudPanel(this,16,16,210,120);
+    this.add.text(28,28,'GÖREV',{fontFamily:'Orbitron,monospace',fontSize:'9px',color:'#00ff88',letterSpacing:3});
+    this.add.text(28,46,'Hedef Bölge:',{fontFamily:'Exo 2',fontSize:'11px',color:'#6a8aaa'});
+    this.add.text(28,60,'Ay Güney Kutbu',{fontFamily:'Exo 2',fontSize:'13px',color:'#e8f0f5'});
+    this.add.text(28,80,'Araç:',{fontFamily:'Exo 2',fontSize:'11px',color:'#6a8aaa'});
+    this.add.text(28,94,'TÜRKİYE-1 ROVER',{fontFamily:'Orbitron,monospace',fontSize:'11px',color:'#E30A17'});
+    
+    hudPanel(this,w-230,16,214,120);
+    this.add.text(w-218,28,'HAVA DURUMU',{fontFamily:'Orbitron,monospace',fontSize:'9px',color:'#00ff88',letterSpacing:3});
+    this.add.text(w-218,46,'Koşul:',{fontFamily:'Exo 2',fontSize:'11px',color:'#6a8aaa'});
+    this.add.text(w-218,60,this.weather.short,{fontFamily:'Orbitron,monospace',fontSize:'14px',color:this.weather.col});
+    this.add.text(w-218,82,'Yakıt etkisi:',{fontFamily:'Exo 2',fontSize:'11px',color:'#6a8aaa'});
+    this.add.text(w-218,96,'+'+this.weather.fm+'%',{fontFamily:'Exo 2',fontSize:'12px',color:'#f0c040'});
+    
+    const py=h-158;
+    const cpbg=this.add.graphics();
+    cpbg.fillStyle(0x050d1a,.94);cpbg.fillRoundedRect(w/2-460,py,920,142,10);
+    cpbg.lineStyle(1,0x00ff88,.35);cpbg.strokeRoundedRect(w/2-460,py,920,142,10);
+
+    // YENİ EKLENEN: HUD'da Lokasyon ve Motor Bilgilerini Gösterme
+    this.add.text(w/2-430,py+14,'LOKASYON & İTKİ',{fontFamily:'Orbitron,monospace',fontSize:'9px',color:'#00ff88',letterSpacing:3});
+    this.siteTxt = this.add.text(w/2-430,py+32,this.sites[this.currentSiteIdx].name,{fontFamily:'Orbitron,monospace',fontSize:'14px',fontStyle:'bold',color:'#e8f0f5'});
+    this.engineTxt = this.add.text(w/2-430,py+52,'Motor: ' + this.engines[this.currentEngineIdx].name,{fontFamily:'Exo 2',fontSize:'12px',color:'#f0c040'});
+    this.siteDesc = this.add.text(w/2-430,py+72,this.sites[this.currentSiteIdx].desc,{fontFamily:'Exo 2',fontSize:'11px',color:'#6a8aaa'});
+    
+    const btnSite = this.add.text(w/2-430,py+96,'[ ÜSSÜ DEĞİŞTİR ]',{fontFamily:'Orbitron,monospace',fontSize:'11px',color:'#00ff88'}).setInteractive({useHandCursor:true});
+    const btnEngine = this.add.text(w/2-430,py+116,'[ MOTORU DEĞİŞTİR ]',{fontFamily:'Orbitron,monospace',fontSize:'11px',color:'#f0c040'}).setInteractive({useHandCursor:true});
+
+    btnSite.on('pointerdown',()=>{if(!this.launched){this.currentSiteIdx = this.currentSiteIdx === 0 ? 1 : 0; this.updateSite()}});
+    btnEngine.on('pointerdown',()=>{if(!this.launched){this.currentEngineIdx = this.currentEngineIdx === 0 ? 1 : 0; this.updateEngine()}});
+
+    this.add.text(w/2-180,py+14,'İTKİ GÜCÜ',{fontFamily:'Orbitron,monospace',fontSize:'9px',color:'#00ff88',letterSpacing:3});
+    this.thrustTxt=this.add.text(w/2-110,py+42,'100%',{fontFamily:'Orbitron,monospace',fontSize:'28px',fontStyle:'bold',color:'#00ff88'}).setOrigin(.5);
+    this.targetThrustTxt = this.add.text(w/2-110,py+74,'Hedef: ~%100',{fontFamily:'Exo 2',fontSize:'10px',color:'#3a5a7a'}).setOrigin(.5);
+    const btnTM=this.add.text(w/2-155,py+42,'◀',{fontFamily:'Exo 2',fontSize:'22px',color:'#f0c040'}).setOrigin(1,.5).setInteractive({useHandCursor:true});
+    const btnTP=this.add.text(w/2-65,py+42,'▶',{fontFamily:'Exo 2',fontSize:'22px',color:'#f0c040'}).setOrigin(0,.5).setInteractive({useHandCursor:true});
+    btnTM.on('pointerdown',()=>{if(!this.launched){this.thrust=Math.max(50,this.thrust-5);this.updateThrust()}});
+    btnTP.on('pointerdown',()=>{if(!this.launched){this.thrust=Math.min(130,this.thrust+5);this.updateThrust()}});
+
+    this.add.text(w/2+40,py+14,'FIRLATMA AÇISI',{fontFamily:'Orbitron,monospace',fontSize:'9px',color:'#00ff88',letterSpacing:3});
+    this.angleTxt=this.add.text(w/2+110,py+42,'90°',{fontFamily:'Orbitron,monospace',fontSize:'28px',fontStyle:'bold',color:'#00ff88'}).setOrigin(.5);
+    this.optAngleTxt=this.add.text(w/2+110,py+74,'Optimal: 90°',{fontFamily:'Exo 2',fontSize:'10px',color:'#3a5a7a'}).setOrigin(.5);
+    const btnM=this.add.text(w/2+65,py+42,'◀',{fontFamily:'Exo 2',fontSize:'22px',color:'#f0c040'}).setOrigin(1,.5).setInteractive({useHandCursor:true});
+    const btnP=this.add.text(w/2+155,py+42,'▶',{fontFamily:'Exo 2',fontSize:'22px',color:'#f0c040'}).setOrigin(0,.5).setInteractive({useHandCursor:true});
+    btnM.on('pointerdown',()=>{if(!this.launched){this.launchAngle=Math.max(70,this.launchAngle-1);this.updateAngle()}});
+    btnP.on('pointerdown',()=>{if(!this.launched){this.launchAngle=Math.min(110,this.launchAngle+1);this.updateAngle()}});
+
+    const lbg=this.add.graphics();
+    lbg.fillStyle(0x8a0610);lbg.fillRoundedRect(w/2+260,py+18,175,106,8);
+    lbg.fillStyle(0xE30A17,.9);lbg.fillRoundedRect(w/2+262,py+20,171,102,7);
+    lbg.lineStyle(2,0xff4444);lbg.strokeRoundedRect(w/2+262,py+20,171,102,7);
+    this.add.text(w/2+348,py+60,'FIRLATMA',{fontFamily:'Orbitron,monospace',fontSize:'15px',fontStyle:'bold',color:'#fff',letterSpacing:2}).setOrigin(.5);
+    this.add.text(w/2+348,py+82,'BAŞLAT',{fontFamily:'Orbitron,monospace',fontSize:'14px',color:'#ffdddd',letterSpacing:2}).setOrigin(.5);
+    const lzone=this.add.zone(w/2+348,py+70,175,106).setInteractive({useHandCursor:true});
+    lzone.on('pointerover',()=>lbg.setAlpha(.8));
+    lzone.on('pointerout',()=>lbg.setAlpha(1));
+    lzone.on('pointerdown',()=>{if(!this.launched)this.startLaunch()});
+    
+    this.updateSite(); 
+    this.updateEngine();
+  }
+
+  updateSite() {
+    const site = this.sites[this.currentSiteIdx];
+    this.siteTxt.setText(site.name);
+    this.siteDesc.setText(site.desc);
+    this.drawGround(this.scale.width, this.scale.height);
+    this.calculateTargets(); // Yeni hedefleri hesapla
+    this.updateHUDTexts();   // Ekrana yaz
+  }
+
+  updateEngine() {
+    const engine = this.engines[this.currentEngineIdx];
+    this.engineTxt.setText('Motor: ' + engine.name);
+    this.calculateTargets(); // Yeni hedefleri hesapla
+    this.updateHUDTexts();   // Ekrana yaz
+  }
+
+  updateHUDTexts() {
+    this.optAngleTxt.setText('Optimal: ' + this.targetAngle + '°');
+    this.targetThrustTxt.setText('Hedef: ~%' + this.targetThrust);
+    this.updateAngle();
+    this.updateThrust();
+  }
+
+  updateThrust(){
+    this.thrustTxt.setText(this.thrust+'%');
+    // Hedeflenen itkiye ne kadar yakınız?
+    let diff = Math.abs(this.thrust - this.targetThrust);
+    let color = diff === 0 ? '#00ff88' : (diff <= 10 ? '#f0c040' : '#ff4444');
+    this.thrustTxt.setColor(color);
+  }
+
+  updateAngle(){
+    this.angleTxt.setText(this.launchAngle+'°');
+    // Hedeflenen açıya ne kadar yakınız?
+    let d = Math.abs(this.launchAngle - this.targetAngle);
+    this.angleTxt.setColor(d === 0 ? '#00ff88' : (d <= this.weather.ar ? '#f0c040' : '#ff4444'));
+    this.rkt.setAngle(this.launchAngle-90);
+    this.flm.setAngle(this.launchAngle-90);
+  }
+
+  showWeatherPopup(w,h){
+    const g=this.add.graphics();
+    g.fillStyle(0x050d1a,.96);g.fillRoundedRect(w/2-210,h/2-90,420,180,10);
+    g.lineStyle(1.5,this.weather.col);g.strokeRoundedRect(w/2-210,h/2-90,420,180,10);
+    const t1=this.add.text(w/2,h/2-62,'HAVA DURUMU RAPORU',{fontFamily:'Orbitron,monospace',fontSize:'11px',color:'#00ff88',letterSpacing:3}).setOrigin(.5);
+    const t2=this.add.text(w/2,h/2-26,this.weather.label,{fontFamily:'Orbitron,monospace',fontSize:'26px',fontStyle:'bold',color:this.weather.col}).setOrigin(.5);
+    const t3=this.add.text(w/2,h/2+14,'Açı toleransı: ±'+this.weather.ar+'°   |   Ek yakıt: +'+this.weather.fm+'%',{fontFamily:'Exo 2',fontSize:'13px',color:'#aac4dd'}).setOrigin(.5);
+    const ok=this.add.text(w/2,h/2+56,'[ ANLAŞILDI — DEVAM ]',{fontFamily:'Orbitron,monospace',fontSize:'12px',color:'#00ff88',letterSpacing:3}).setOrigin(.5).setInteractive({useHandCursor:true});
+    ok.on('pointerdown',()=>{[g,t1,t2,t3,ok].forEach(x=>x.destroy())});
+  }
+
+  // YENİ EKLENEN FONKSİYON: Dinamik Hedef Hesaplayıcı
+  calculateTargets() {
+    const site = this.sites[this.currentSiteIdx];
+    const engineId = this.engines[this.currentEngineIdx].id;
+
+    // 1. İTKİ HESABI (Thrust)
+    // Somali ekvatorda olduğu için merkezkaç kuvveti yardım eder (%85 yeterli). Anadolu daha zordur (%100).
+    let baseThrust = site.id === 'SOMALİ' ? 85 : 100;
+    
+    // Hibrit motorun başlangıç itkisi zayıftır, motoru biraz daha zorlamak gerekir (+10%).
+    if (engineId === 'HİBRİT') baseThrust += 10;
+    this.targetThrust = baseThrust;
+
+    // 2. AÇI HESABI (Angle)
+    // Rüzgarın şiddetine göre sapma açısı
+    let windForce = this.weather.short === 'RÜZGARLI' ? 6 : (this.weather.short === 'BULUTLU' ? 2 : 0);
+    
+    // Kimyasal motor ağır olduğu için rüzgarı yarar, sadece rüzgar kadar açı verilir.
+    // Hibrit motor hafif olduğu için rüzgarda çok savrulur, açıyı 2 kat daha fazla eğmek gerekir.
+    let angleShift = engineId === 'KİMYASAL' ? windForce : windForce * 2;
+
+    // Rüzgara karşı burnu eğiyoruz (90 dereceden çıkartıyoruz)
+    this.targetAngle = 90 - angleShift; 
+  }
+
+  startLaunch(){
+    if(this.launched)return;
+    
+    // YENİ EKLENEN: İtki ve Fırlatma Üssü Uyumsuzluk Kontrolü
+    const site = this.sites[this.currentSiteIdx];
+    const engine = this.engines[this.currentEngineIdx];
+    if(site.reqEngine !== engine.id) {
+        this.failLaunch(`UYUMSUZ SİSTEM!\n${engine.name}, ${site.name} için uygun değil.\nLütfen uygun fırlatma üssü veya motoru seçin.`);
+        return;
+    }
+
+    this.launched=true;
+    const w=this.scale.width,h=this.scale.height;
+    
+    const angleDiff=Math.abs(this.launchAngle-this.targetAngle);
+    
+    let n=3;
+    const ct=this.add.text(w/2,h*.4,n+'',{fontFamily:'Orbitron,monospace',fontSize:'90px',fontStyle:'bold',color:'#E30A17',stroke:'#000',strokeThickness:4}).setOrigin(.5);
+    this.time.addEvent({delay:700,repeat:2,callback:()=>{
+      n--;
+      if(n>0){ct.setText(n+'');this.tweens.add({targets:ct,scaleX:1.4,scaleY:1.4,duration:90,yoyo:true})}
+      else{ct.setText('FIRLA!').setColor('#00ff88');this.time.delayedCall(500,()=>{ct.destroy();this.doLaunch(angleDiff)})}
+    }});
+  }
+
+  doLaunch(angleDiff){
+    const w=this.scale.width, h=this.scale.height;
+    this.flm.setVisible(true);
+    
+    const thrustScale = this.thrust / 100;
+    this.tweens.add({targets:this.flm,scaleY:1.5 * thrustScale,alpha:.65,duration:140 - (this.thrust-100),yoyo:true,repeat:-1});
+    this.cameras.main.shake(700,.014 * thrustScale);
+
+    let isFail = false;
+    let failMsg = "";
+    
+    // Hedef itkiden ne kadar saptık?
+    let thrustDiff = this.thrust - this.targetThrust;
+
+    if (thrustDiff < -10) {
+      isFail = true;
+      failMsg = `İTKİ GÜCÜ YETERSİZ!\nGereken: %${this.targetThrust}. Motorlar yerçekimini yenemedi.`;
+    } else if (thrustDiff > 20) {
+      isFail = true;
+      failMsg = `AŞIRI İTKİ GÜCÜ!\nGereken: %${this.targetThrust}. Motorlar aşırı basınca dayanamadı ve patladı.`;
+    } else if (angleDiff > this.weather.ar) {
+      isFail = true;
+      failMsg = `YÖRÜNGE SAPMASI!\nAçı hatası: ${angleDiff}°. İzin verilen rüzgar toleransı (${this.weather.ar}°) aşıldı.`;
+    }
+
+    if (isFail) {
+      this.tweens.add({
+        targets:[this.rkt,this.flm], y: h*.4, x: this.rkt.x + (this.launchAngle - 90)*2, duration: 2500, ease: 'Cubic.easeOut',
+        onComplete:()=>{
+          this.flm.setVisible(false);
+          this.cameras.main.shake(500,.025);
+          this.time.delayedCall(1000, () => this.failLaunch(failMsg));
+        }
+      });
+      return;
+    }
+
+    const ar=Phaser.Math.DegToRad(this.launchAngle-90);
+    const tx=w*.5+Math.sin(ar)*350;
+    const finalDuration = 2500 - ((this.thrust - this.targetThrust) * 15); 
+    
+    // Aşırı itki verirsek kalkan ısınır
+    const heatPenalty = thrustDiff > 0 ? thrustDiff * 1.5 : 0; 
+    // Hedef itkiden saptıkça ve açı hatası yaptıkça yakıt israfı olur
+    const thrustPenalty = Math.abs(thrustDiff) * 0.7; 
+
+    // --- YENİ EKLENEN MOTOR KARAKTERİSTİĞİ ---
+    const engineId = this.engines[this.currentEngineIdx].id;
+    
+    let baseFuelCost = 0;
+    let anglePenalty = 0;
+    let payloadPenalty = 0;
+
+    if (engineId === 'KİMYASAL') {
+        // Kimyasal motor rüzgara dirençlidir (açı cezası az) ama çok yakıt harcar (taban 25)
+        baseFuelCost = 25;
+        anglePenalty = (angleDiff / Math.max(1, this.weather.ar)) * 9; 
+    } else if (engineId === 'HİBRİT') {
+        // Hibrit motor rüzgarda çok savrulur (açı cezası yüksek) ama az yakıt harcar (taban 12)
+        baseFuelCost = 12;
+        anglePenalty = (angleDiff / Math.max(1, this.weather.ar)) * 27; 
+        
+        // Araç sabit olarak Rover (ağır) olduğu için hibrit motor zorlanır ve ekstra yakıt harcar
+        payloadPenalty = 10;
+    }
+
+    // Toplam harcanan yakıtı tek seferde hesaplıyoruz
+    const totalFuelConsumed = baseFuelCost + this.weather.fm + thrustPenalty + anglePenalty + payloadPenalty;
+    // ------------------------------------------
+
+    this.tweens.add({
+      targets:[this.rkt,this.flm],x:tx,y:-220,
+      duration:finalDuration,ease:'Cubic.easeIn',
+      onComplete:()=>{
+        fadeNext(this,'AtmosphereScene',{
+          fuel: Math.max(10, 100 - totalFuelConsumed),
+          heatPenalty: heatPenalty, 
+          weather: this.weather.short,
+          engine: this.engines[this.currentEngineIdx].id // Sonraki aşamaya motor bilgisini taşıyoruz
+        });
+      }
+    });
+  }
+
+  failLaunch(msg){
+    const w=this.scale.width,h=this.scale.height;
+    const g=this.add.graphics();
+    g.fillStyle(0x1a0000,.94);g.fillRoundedRect(w/2-250,h/2-100,500,200,10);
+    g.lineStyle(2,0xff2200);g.strokeRoundedRect(w/2-250,h/2-100,500,200,10);
+    
+    this.add.text(w/2,h/2-64,'FIRLATMA BAŞARISIZ',{fontFamily:'Orbitron,monospace',fontSize:'22px',color:'#ff2200',letterSpacing:4}).setOrigin(.5);
+    this.add.text(w/2,h/2-14,msg,{fontFamily:'Exo 2',fontSize:'15px',color:'#ffaaaa', align: 'center', lineSpacing: 8}).setOrigin(.5);
+    
+    const r=this.add.text(w/2,h/2+64,'[ YENİDEN DENE ]',{fontFamily:'Orbitron,monospace',fontSize:'14px',color:'#00ff88',letterSpacing:3}).setOrigin(.5).setInteractive({useHandCursor:true});
+    r.on('pointerdown',()=>this.scene.restart());
+  }
+}
+
+/* ── ATMOSPHERE ───────────────────────────────────────────── */
+class AtmosphereScene extends Phaser.Scene {
+  constructor(){super({key:'AtmosphereScene'})}
+  
+  init(d){
+    this.fuel = d.fuel || 100;
+    this.heatPenalty = d.heatPenalty || 0;
+    this.weatherLabel = d.weather || 'AÇIK';
+    this.engine = d.engine || 'KİMYASAL';
+  }
+  
+  create(){
+    const w=this.scale.width,h=this.scale.height;
+    this.heat = 100 - this.heatPenalty; 
+    this.ry = h*.75; 
+    this.alt = 0; 
+    this.dead = false; 
+    this.done = false;
+    this.autoFuelTimer = 0;
+    
+    // YENİ EKLENEN: Kademe Ayrılması Mantığı
+    this.boostersAttached = true;
+    this.boosterAlerted = false;
+
+    if(!this.textures.exists('debris')){
+      const g = this.make.graphics({x:0,y:0,add:false});
+      g.fillStyle(0x6a7b88);g.fillRect(0,0,16,16);
+      g.fillStyle(0xff8800);g.fillRect(4,4,8,8);
+      g.generateTexture('debris',16,16);
+      g.destroy();
+    }
+
+    this.skyBg=this.add.graphics();
+    this.drawSky(0);
+
+    this.rkt = this.physics.add.image(w*.5, this.ry, 'rocket').setScale(2);
+    this.rkt.setCollideWorldBounds(true); 
+    this.rkt.body.setSize(18, 55); 
+
+    this.flm=this.add.image(w*.5, this.ry+82, 'flame').setScale(1.5);
+    this.tweens.add({targets:this.flm, scaleY:1.2, alpha:.65, duration:130, yoyo:true, repeat:-1});
+
+    this.add.text(w/2,28,'BÖLÜM 2  ·  ATMOSFERİ GEÇ',{fontFamily:'Orbitron,monospace',fontSize:'13px',color:'#00ff88',letterSpacing:5}).setOrigin(.5);
+    this.buildHUD(w,h);
+
+    const hint=this.add.text(w/2,h*.9,'W,A,S,D veya Ok Tuşları ile manevra yap\nHareket etmek YAKIT harcar!',{fontFamily:'Exo 2',fontSize:'13px',color:'#5a8aaa', align:'center', letterSpacing:2}).setOrigin(.5);
+    this.time.delayedCall(4500,()=>hint.destroy());
+
+    this.debrisGroup = this.physics.add.group();
+    this.physics.add.overlap(this.rkt, this.debrisGroup, this.hitDebris, null, this);
+
+    this.spawnTimer = this.time.addEvent({
+      delay: 700, loop: true, callback: this.spawnHazards, callbackScope: this
+    });
+
+    this.cursors=this.input.keyboard.createCursorKeys();
+    this.wasd=this.input.keyboard.addKeys({left:'A',right:'D',up:'W',down:'S'});
+    
+    // YENİ EKLENEN: Kademe ayırma tuş ataması
+    this.input.keyboard.on('keydown-SPACE', ()=>{
+      if(this.boosterAlerted && this.boostersAttached) {
+        this.boostersAttached = false;
+        this.boosterTxt.setText('KADEME AYRILDI!').setColor('#00ff88');
+        this.time.delayedCall(1500, ()=>this.boosterTxt.destroy());
+        this.cameras.main.shake(200, 0.01);
+      }
+    });
+
+    this.cameras.main.fadeIn(650,0,0,0);
+  }
+
+  spawnHazards() {
+    if(this.dead || this.done) return;
+    const w = this.scale.width, h = this.scale.height;
+
+    if(this.alt < 100 && Math.random() > 0.4){
+      const cl = this.add.image(Phaser.Math.Between(0,w), -50, 'cloud').setScale(Phaser.Math.FloatBetween(1.4,3.2)).setAlpha(.4);
+      this.tweens.add({targets:cl, y: h + 100, x: cl.x - 100, duration: 6000, onComplete:()=>cl.destroy()});
+    }
+
+    if(this.alt > 30) {
+      let spawnCount = this.alt > 200 ? 2 : 1; 
+      for(let i=0; i<spawnCount; i++) {
+         let xPos = Phaser.Math.Between(50, w-50);
+         let debris = this.debrisGroup.create(xPos, -30, 'debris');
+         debris.setScale(Phaser.Math.FloatBetween(1.2, 2.5));
+         debris.setVelocityY(Phaser.Math.Between(300, 500)); 
+         debris.setAngularVelocity(Phaser.Math.Between(-150, 150)); 
+      }
+    }
+  }
+
+  hitDebris(rocket, debris) {
+    debris.destroy(); 
+    this.cameras.main.shake(250, 0.02);
+    const flash = this.add.rectangle(this.scale.width/2, this.scale.height/2, this.scale.width, this.scale.height, 0xff0000, 0.4);
+    this.tweens.add({targets: flash, alpha: 0, duration: 300, onComplete: () => flash.destroy()});
+    this.heat -= 20; 
+    if(this.heat < 0) this.heat = 0;
+  }
+
+  drawSky(p){
+    const w=this.scale.width,h=this.scale.height,g=this.skyBg;g.clear();
+    const r=Math.round(Phaser.Math.Linear(0x0a,0x02,p)),gb=Math.round(Phaser.Math.Linear(0x1a,0x04,p)),b=Math.round(Phaser.Math.Linear(0x3a,0x08,p));
+    g.fillStyle((r<<16)|(gb<<8)|b);g.fillRect(0,0,w,h);
+  }
+
+  buildHUD(w,h){
+    hudPanel(this,16,16,175,130,0xff6600);
+    this.add.text(28,28,'ISI KALKANI',{fontFamily:'Orbitron,monospace',fontSize:'9px',color:'#ff8800',letterSpacing:2});
+    this.add.rectangle(28,52,140,10,0x1a2a3a).setOrigin(0,.5);
+    this.heatBar=this.add.rectangle(28,52,140,10,0xff6600).setOrigin(0,.5);
+    this.heatTxt=this.add.text(28,62,'',{fontFamily:'Exo 2',fontSize:'11px',color:'#ffaa44'});
+    
+    this.add.text(28,84,'YAKIT',{fontFamily:'Orbitron,monospace',fontSize:'9px',color:'#00ff88',letterSpacing:2});
+    this.add.rectangle(28,108,140,10,0x1a2a3a).setOrigin(0,.5);
+    this.fuelBarA=this.add.rectangle(28,108,140,10,0x00ff88).setOrigin(0,.5);
+    this.fuelTxtA=this.add.text(28,118,'',{fontFamily:'Exo 2',fontSize:'11px',color:'#aaffcc'});
+
+    this.add.text(w-52,55,'İRTİFA',{fontFamily:'Orbitron,monospace',fontSize:'8px',color:'#00ff88',letterSpacing:1}).setOrigin(.5);
+    this.add.rectangle(w-52,h/2,14,h*.62,0x1a2a3a).setOrigin(.5);
+    this.altBar=this.add.rectangle(w-52,h*.82,10,2,0x00ff88).setOrigin(.5,1);
+    this.altTxt=this.add.text(w-52,h*.18,'0 km',{fontFamily:'Exo 2',fontSize:'11px',color:'#e8f0f5'}).setOrigin(.5);
+  }
+
+  update(t,delta){
+    if(this.dead||this.done) return;
+    const w=this.scale.width,h=this.scale.height,dt=delta/1000;
+    
+    this.autoFuelTimer += dt;
+    if (this.autoFuelTimer >= 5.0) {
+        this.fuel -= 1;
+        this.autoFuelTimer = 0;
+        if(this.fuelBarA) this.tweens.add({ targets: this.fuelBarA, alpha: 0.4, duration: 150, yoyo: true });
+    }
+
+    this.alt += dt * 25;
+    const p = Math.min(this.alt/400, 1);
+    this.drawSky(p);
+
+    // YENİ EKLENEN: İrtifaya Bağlı Kademe Uyarısı
+    if (this.alt > 60 && !this.boosterAlerted) {
+       this.boosterAlerted = true;
+       this.boosterTxt = this.add.text(w/2, 100, 'BOŞ TANKLARI ATMAK İÇİN [BOŞLUK] TUŞUNA BAS!', {fontFamily:'Orbitron,monospace',fontSize:'18px',color:'#ff4444'}).setOrigin(.5);
+       this.tweens.add({targets:this.boosterTxt, alpha:0.2, duration:200, yoyo:true, repeat:-1});
+    }
+    // Tank atılmazsa ekstra ceza yakıt
+    if (this.boosterAlerted && this.boostersAttached) {
+       this.fuel -= dt * 3;
+    }
+
+    let dx = 0, dy = 0;
+    let isMoving = false;
+
+    // --- YENİ EKLENEN MOTOR KARAKTERİSTİĞİ ---
+    let speedMult = this.engine === 'HİBRİT' ? 1.7 : 1.0; 
+    let fuelBurnRate = this.engine === 'HİBRİT' ? 1.2 : 2.5; // Hibrit cimridir, Kimyasal çok yakar
+    let heatDamageRate = this.engine === 'HİBRİT' ? 2.5 : 0.8; // Hibrit hassastır, Kimyasal zırhlıdır
+
+    if (this.fuel > 0) {
+      if(this.cursors.left.isDown||this.wasd.left.isDown) { dx = -300 * speedMult; this.fuel -= dt * fuelBurnRate; isMoving = true; }
+      if(this.cursors.right.isDown||this.wasd.right.isDown) { dx = 300 * speedMult; this.fuel -= dt * fuelBurnRate; isMoving = true; }
+      
+      if(this.cursors.up.isDown||this.wasd.up.isDown) { 
+        dy = -250; 
+        this.fuel -= dt * (fuelBurnRate * 1.5); // Dikey çıkış ekstra yakıt yer
+        this.alt += dt * 20; 
+        isMoving = true; 
+      } 
+      else if(this.cursors.down.isDown||this.wasd.down.isDown) { 
+        dy = 250; 
+        this.fuel -= dt * (fuelBurnRate * 0.5); 
+        isMoving = true; 
+      }
+    }
+
+    // AERODİNAMİK ISINMA MEKANİĞİ
+    // Sağa sola sert gidilirse hava sürtünmesi kalkanı yakar
+    if(Math.abs(dx) > 100 && this.alt < 200) {
+        this.heat -= dt * (Math.abs(dx)/100) * heatDamageRate; 
+    }
+    // ------------------------------------------
+
+    this.rkt.setVelocity(dx, dy);
+
+    this.flm.x = this.rkt.x;
+    this.flm.y = this.rkt.y + 82;
+
+    if(isMoving && this.fuel > 0) {
+      this.flm.setScale(1.8); this.flm.setAlpha(0.9);
+    } else {
+      this.flm.setScale(1.2); this.flm.setAlpha(0.6);
+      if(this.fuel <= 0) this.flm.setVisible(false); 
+    }
+
+    this.debrisGroup.children.iterate((child) => {
+      if(child && child.y > h + 50) child.destroy();
+    });
+
+    this.heatBar.width = 140 * (Math.max(0, this.heat) / 100);
+    this.heatTxt.setText(Math.round(this.heat) + '%');
+    if(this.heat < 30) this.heatBar.setFillStyle(0xff2200);
+
+    this.fuelBarA.width = 140 * (Math.max(0, this.fuel) / 100);
+    this.fuelTxtA.setText(Math.round(Math.max(0, this.fuel)) + '%');
+    if(this.fuel < 25) this.fuelBarA.setFillStyle(0xff4444);
+
+    const ap = p; this.altBar.height = h * .62 * ap; this.altBar.y = h * .82 - h * .62 * ap; 
+    this.altTxt.setText(Math.round(this.alt) + ' km');
+
+    if(this.heat <= 0){
+      this.fail('ISI KALKANI PARÇALANDI!\nUzay çöpleri rokete kritik hasar verdi.');
+      return;
+    }
+    if(this.fuel <= 0 && this.ry > h*.85){
+      this.fail('YAKIT TÜKENDİ!\nRoket manevra yapamadığı için irtifa kaybetti.');
+      return;
+    }
+    if(this.alt >= 400){
+      this.done=true;
+      this.succeed();
+    }
+  }
+
+  fail(msg){
+    if(this.dead)return;this.dead=true;
+    this.spawnTimer.remove(); 
+    this.rkt.setVelocity(0,0);
+    
+    const w=this.scale.width,h=this.scale.height;
+    this.cameras.main.shake(400,.025);
+    
+    const g=this.add.graphics();
+    g.fillStyle(0x1a0000,.94);g.fillRoundedRect(w/2-250,h/2-100,500,200,10);
+    g.lineStyle(2,0xff2200);g.strokeRoundedRect(w/2-250,h/2-100,500,200,10);
+
+    this.add.text(w/2,h/2-64,'GÖREV BAŞARISIZ',{fontFamily:'Orbitron,monospace',fontSize:'22px',color:'#ff2200',letterSpacing:4}).setOrigin(.5);
+    this.add.text(w/2,h/2-14,msg,{fontFamily:'Exo 2',fontSize:'15px',color:'#ffaaaa', align: 'center', lineSpacing: 8}).setOrigin(.5);
+
+    const r=this.add.text(w/2,h/2+64,'[ YENİDEN DENE ]',{fontFamily:'Orbitron,monospace',fontSize:'14px',color:'#00ff88',letterSpacing:3}).setOrigin(.5).setInteractive({useHandCursor:true});
+    r.on('pointerdown',()=>fadeNext(this,'LaunchScene')); 
+  }
+
+  succeed(){
+    this.spawnTimer.remove();
+    this.rkt.setVelocity(0,0);
+    this.tweens.add({targets:[this.rkt,this.flm], y:'-=400', duration:1100, ease:'Cubic.easeIn', onComplete:()=>fadeNext(this,'SpaceScene',{fuel:this.fuel, heat:this.heat, engine:this.engine})});
+  }
+}
+
+/* ── SPACE ────────────────────────────────────────────────── */
+class SpaceScene extends Phaser.Scene {
+  constructor(){super({key:'SpaceScene'})}
+  
+  init(d){
+    this.fuel = Math.max(5, d.fuel || 70); 
+    this.heat = Math.max(5, d.heat || 75); 
+    this.engine = d.engine || 'KİMYASAL';
+  }
+  
+  create(){
+    const w=this.scale.width, h=this.scale.height;
+    this.done=false;
+    this.dead=false;
+    this.distance = 0;
+    this.totalDistance = 384400;
+    this.inSafeZone = false; 
+    this.autoFuelTimer = 0;
+
+    if(!this.textures.exists('meteor')){
+      const g = this.make.graphics({x:0,y:0,add:false});
+      g.fillStyle(0x554444); g.fillCircle(15,15,15);
+      g.fillStyle(0x332222); g.fillCircle(8,10,4); g.fillCircle(20,20,5); g.fillCircle(22,10,3);
+      g.generateTexture('meteor',30,30);
+      g.destroy();
+    }
+
+    this.starGroup = this.add.group();
+    for(let i=0; i<150; i++){
+      let s = this.add.circle(Phaser.Math.Between(0,w), Phaser.Math.Between(0,h), Phaser.Math.FloatBetween(0.5, 2), 0xffffff, Phaser.Math.FloatBetween(0.3, 1));
+      this.starGroup.add(s);
+    }
+
+    this.earth=this.add.image(-80,h*.5,'earth').setScale(3);
+    this.moon=this.add.image(w+150,h*.5,'moon').setScale(.45);
+
+    this.rkt=this.physics.add.image(w*.2,h*.5,'rocket').setScale(1.8).setAngle(90);
+    this.rkt.setCollideWorldBounds(true);
+    this.rkt.body.setSize(55, 18); 
+
+    this.flm=this.add.image(w*.2-82,h*.5,'flame').setScale(1.4).setAngle(90);
+    this.tweens.add({targets:this.flm,scaleX:1.2,alpha:.65,duration:135,yoyo:true,repeat:-1});
+
+    this.add.text(w/2,28,'BÖLÜM 3  ·  DERİN UZAY',{fontFamily:'Orbitron,monospace',fontSize:'13px',color:'#00ff88',letterSpacing:5}).setOrigin(.5);
+    
+    this.buildHUD(w,h);
+    this.buildProgress(w,h);
+
+    const hint=this.add.text(w/2,h*.85,'Yön tuşları veya W,A,S,D ile meteorlardan kaç!\nMavi TÜRKSAT uyduları sana YAKIT desteği verir.',{fontFamily:'Exo 2',fontSize:'13px',color:'#5a8aaa', align:'center', letterSpacing:2}).setOrigin(.5);
+    this.time.delayedCall(4500,()=>hint.destroy());
+
+    this.meteorGroup = this.physics.add.group();
+    this.satGroup = this.physics.add.group(); // YENİ: Uydu Grubu
+
+    this.physics.add.overlap(this.rkt, this.meteorGroup, this.hitMeteor, null, this);
+    this.physics.add.overlap(this.rkt, this.satGroup, this.hitSatellite, null, this);
+
+    this.spawnTimer = this.time.addEvent({
+      delay: 800, loop: true, callback: this.spawnMeteor, callbackScope: this
+    });
+
+    this.cursors=this.input.keyboard.createCursorKeys();
+    this.wasd=this.input.keyboard.addKeys({left:'A',right:'D',up:'W',down:'S'});
+    this.cameras.main.fadeIn(700,0,0,0);
+  }
+
+  spawnMeteor() {
+    if(this.dead || this.done || this.inSafeZone) return;
+    const w = this.scale.width, h = this.scale.height;
+    
+    let count = Phaser.Math.Between(1, 3);
+    for(let i=0; i<count; i++) {
+      let yPos = Phaser.Math.Between(50, h-80);
+      let m = this.meteorGroup.create(w + 50, yPos, 'meteor');
+      let scale = Phaser.Math.FloatBetween(1, 3);
+      m.setScale(scale);
+      
+      let speed = Phaser.Math.Between(300, 700) / scale;
+      m.setVelocityX(-speed);
+      m.setAngularVelocity(Phaser.Math.Between(-200, 200));
+      m.body.setCircle(12, 3, 3);
+    }
+
+    // YENİ EKLENEN: Arasıra TÜRKSAT Uydusu Gelsin (Yakıt Bonusu)
+    if(Math.random() > 0.85) {
+      let sat = this.satGroup.create(w + 50, Phaser.Math.Between(50, h-80), 'satellite');
+      sat.setScale(1.2).setVelocityX(-250);
+    }
+  }
+
+  hitMeteor(rocket, meteor) {
+    meteor.destroy();
+    this.cameras.main.shake(300, 0.02);
+    const flash = this.add.rectangle(this.scale.width/2, this.scale.height/2, this.scale.width, this.scale.height, 0xff0000, 0.4);
+    this.tweens.add({targets: flash, alpha: 0, duration: 300, onComplete: () => flash.destroy()});
+    this.heat -= 15; 
+    if(this.heat < 0) this.heat = 0;
+  }
+
+  // YENİ EKLENEN: Uyduya Çarpma (Toplama) Olayı
+  hitSatellite(rocket, sat) {
+    sat.destroy();
+    this.fuel = Math.min(100, this.fuel + 15); // +15 Yakıt Bonusu
+    const msg = this.add.text(this.rkt.x, this.rkt.y - 40, 'TÜRKSAT DESTEĞİ!\n+15 YAKIT', {fontFamily:'Exo 2',fontSize:'12px',color:'#00aaff', align:'center', fontStyle:'bold'}).setOrigin(0.5);
+    this.tweens.add({targets: msg, y: this.rkt.y - 80, alpha: 0, duration: 1500, onComplete: ()=>msg.destroy()});
+  }
+
+  buildHUD(w,h){
+    hudPanel(this,16,16,210,145);
+    this.add.text(28,30,'GÖREV BİLGİSİ',{fontFamily:'Orbitron,monospace',fontSize:'9px',color:'#00ff88',letterSpacing:2});
+    this.add.text(28,50,'Hedef:',{fontFamily:'Exo 2',fontSize:'11px',color:'#6a8aaa'});
+    this.add.text(28,64,'Ay Güney Kutbu',{fontFamily:'Exo 2',fontSize:'13px',color:'#e8f0f5'});
+    
+    this.add.text(28,86,'Kalan Yakıt:',{fontFamily:'Exo 2',fontSize:'11px',color:'#6a8aaa'});
+    this.fuelTxt = this.add.text(28,100,Math.round(this.fuel)+'%',{fontFamily:'Orbitron,monospace',fontSize:'16px',color:'#00ff88'});
+    
+    this.add.text(28,122,'Gövde Bütünlüğü:',{fontFamily:'Exo 2',fontSize:'11px',color:'#6a8aaa'});
+    this.heatTxt = this.add.text(28,136,Math.round(this.heat)+'%',{fontFamily:'Exo 2',fontSize:'12px',color:'#ff8800'});
+  }
+
+  buildProgress(w,h){
+    const by=h-52,bx=w*.16,bw=w*.68;
+    this.add.text(w/2,by-22,'YOLCULUK İLERLEMESİ',{fontFamily:'Orbitron,monospace',fontSize:'10px',color:'#00ff88',letterSpacing:3}).setOrigin(.5);
+    this.add.text(w*.12,by+3,'DÜNYA',{fontFamily:'Exo 2',fontSize:'11px',color:'#6a8aaa'}).setOrigin(.5);
+    this.add.text(w*.88,by+3,'AY',{fontFamily:'Exo 2',fontSize:'11px',color:'#6a8aaa'}).setOrigin(.5);
+    
+    this.add.rectangle(bx+bw/2,by,bw,10,0x1a2a3a).setOrigin(.5);
+    this.pBar=this.add.rectangle(bx,by,0,10,0x00ff88).setOrigin(0,.5);
+    this.pRkt=this.add.text(bx,by,'▶',{fontFamily:'Exo 2',fontSize:'14px',color:'#E30A17'}).setOrigin(.5);
+    this.distTxt=this.add.text(w/2,by+20,'0 / 384.400 km',{fontFamily:'Exo 2',fontSize:'11px',color:'#3a5a7a'}).setOrigin(.5);
+    
+    this.barWidth = bw;
+    this.barStartX = bx;
+  }
+
+  update(t,delta){
+    if(this.dead || this.done) return;
+    const w=this.scale.width,h=this.scale.height,dt=delta/1000;
+
+    if (!this.inSafeZone) {
+      this.autoFuelTimer += dt;
+      if (this.autoFuelTimer >= 5.0) {
+            this.fuel -= 1;
+            this.autoFuelTimer = 0;
+            if(this.fuelTxt) this.tweens.add({ targets: this.fuelTxt, scale: 1.15, duration: 150, yoyo: true });
+        }
+    }
+
+    this.starGroup.children.iterate((star) => {
+      star.x -= 150 * dt * star.scale;
+      if(star.x < 0) { star.x = w; star.y = Phaser.Math.Between(0,h); }
+    });
+
+    this.distance += (384400 / 18) * dt; 
+    if(this.distance >= 384400) this.distance = 384400;
+    
+    let p = this.distance / 384400;
+
+    if (p >= 0.97 && !this.inSafeZone) {
+      this.inSafeZone = true;
+      this.meteorGroup.clear(true, true);
+      this.satGroup.clear(true, true);
+      
+      const safeText = this.add.text(w/2, h*.3, 'AY YÖRÜNGESİNE GİRİLDİ\nMETEOR TEHLİKESİ GEÇTİ', {fontFamily:'Orbitron,monospace',fontSize:'22px',color:'#00ff88', align:'center', letterSpacing:3}).setOrigin(.5);
+      this.tweens.add({targets: safeText, alpha: 0.2, duration: 800, yoyo: true, repeat: -1});
+    }
+
+    this.pBar.width = this.barWidth * p;
+    this.pRkt.x = this.barStartX + this.pBar.width;
+    this.distTxt.setText(Math.round(this.distance).toLocaleString('tr') + ' / 384.400 km');
+    
+    this.earth.x = Phaser.Math.Linear(-80, -300, p);
+    this.moon.x = Phaser.Math.Linear(w+150, w*.8, p);
+    this.moon.setScale(Phaser.Math.Linear(.45, 2.2, p));
+
+    let vx=0, vy=0;
+    let moving = false;
+    // Elektrik biterse veya şarj edilirken roket hareket edemez
+    if(this.fuel > 0) {
+      // --- YENİ EKLENEN MOTOR KARAKTERİSTİĞİ ---
+      let spaceFuelBurn = this.engine === 'HİBRİT' ? 1.5 : 3.8;
+      let spaceSpeed = this.engine === 'HİBRİT' ? 450 : 250;
+
+      if(this.cursors.left.isDown||this.wasd.left.isDown) { vx = -spaceSpeed; moving = true; }
+      if(this.cursors.right.isDown||this.wasd.right.isDown) { vx = spaceSpeed; moving = true; }
+      if(this.cursors.up.isDown||this.wasd.up.isDown) { vy = -spaceSpeed; moving = true; }
+      if(this.cursors.down.isDown||this.wasd.down.isDown) { vy = spaceSpeed; moving = true; }
+      
+      if(moving) this.fuel -= dt * spaceFuelBurn; 
+      // ------------------------------------------
+    }
+    
+    this.rkt.setVelocity(vx, vy);
+    this.flm.x = this.rkt.x - 82;
+    this.flm.y = this.rkt.y;
+
+    this.meteorGroup.children.iterate((m) => { if(m && m.x < -50) m.destroy(); });
+    this.satGroup.children.iterate((s) => { if(s && s.x < -50) s.destroy(); });
+
+    this.fuelTxt.setText(Math.round(this.fuel)+'%');
+    if(this.fuel < 20) this.fuelTxt.setColor('#ff4444');
+    
+    this.heatTxt.setText(Math.round(this.heat)+'%');
+    if(this.heat < 30) this.heatTxt.setColor('#ff4444');
+
+    if(this.heat <= 0){
+      this.fail('GÖVDE PARÇALANDI!\nŞiddetli meteor çarpışmaları roketi yok etti.');
+      return;
+    }
+    
+    if(this.distance >= 384400){
+      this.arrive();
+    }
+  }
+
+  fail(msg){
+    this.dead = true;
+    this.spawnTimer.remove(); 
+    this.rkt.setVelocity(0,0);
+    this.cameras.main.shake(500, 0.03);
+    
+    const w=this.scale.width,h=this.scale.height;
+    const g=this.add.graphics();
+    g.fillStyle(0x1a0000,.94);g.fillRoundedRect(w/2-250,h/2-100,500,200,10);
+    g.lineStyle(2,0xff2200);g.strokeRoundedRect(w/2-250,h/2-100,500,200,10);
+
+    this.add.text(w/2,h/2-64,'GÖREV BAŞARISIZ',{fontFamily:'Orbitron,monospace',fontSize:'22px',color:'#ff2200',letterSpacing:4}).setOrigin(.5);
+    this.add.text(w/2,h/2-14,msg,{fontFamily:'Exo 2',fontSize:'15px',color:'#ffaaaa', align: 'center', lineSpacing: 8}).setOrigin(.5);
+
+    const r=this.add.text(w/2,h/2+64,'[ YENİDEN DENE ]',{fontFamily:'Orbitron,monospace',fontSize:'14px',color:'#00ff88',letterSpacing:3}).setOrigin(.5).setInteractive({useHandCursor:true});
+    r.on('pointerdown',()=>fadeNext(this,'LaunchScene'));
+  }
+
+  arrive(){
+    if(this.done)return;this.done=true;
+    this.spawnTimer.remove();
+    this.rkt.setVelocity(0,0);
+    
+    this.tweens.add({
+      targets:this.moon, scaleX:4.5, scaleY:4.5, x:this.scale.width*.6, duration:1500, ease:'Quad.easeIn', 
+      onComplete:()=>fadeNext(this,'MoonLandingScene',{fuel:this.fuel, heat:this.heat, engine:this.engine})
+    });
+  }
+}
+
+/* ── MOON LANDING ─────────────────────────────────────────── */
+class MoonLandingScene extends Phaser.Scene {
+  constructor(){super({key:'MoonLandingScene'})}
+  
+  init(d){
+    this.fuel = Math.max(10, d.fuel || 65); 
+    this.heat = d.heat || 70; 
+    this.engine = d.engine || 'KİMYASAL';
+  }
+  
+  create(){
+    const w=this.scale.width, h=this.scale.height;
+    this.landed = false;
+    this.activeControll = true;
+    this.padWidth = 100;
+    this.radarActive = false; // YENİ: Radar Durumu
+
+    this.add.rectangle(w/2, h/2, w, h, 0x020408);
+    stars(this, 200, h*.7);
+
+    const eSm=this.add.image(w*.92, h*.15, 'earth').setScale(1).setAlpha(.8);
+    this.tweens.add({targets:eSm, angle:360, duration:120000, repeat:-1});
+
+    this.padLocations = [
+      { x: w * 0.22, y: h * 0.80, name: 'BÖLGE ALFA (CRATER EDGE)' },
+      { x: w * 0.5, y: h * 0.85, name: 'BÖLGE BETA (MARE TRANQUIL)' },
+      { x: w * 0.78, y: h * 0.78, name: 'BÖLGE GAMA (HIGHLANDS)' }
+    ];
+    this.targetPad = Phaser.Math.RND.pick(this.padLocations);
+
+    this.terrainGrp = this.physics.add.staticGroup();
+    this.padGrp = this.physics.add.staticGroup();
+
+    this.drawRuggedTerrain(w, h);
+
+    this.rkt = this.physics.add.image(w*0.5, 90, 'rocket').setScale(1.8);
+    this.rkt.body.setSize(22, 58);
+    this.rkt.setCollideWorldBounds(true);
+
+    // --- YENİ EKLENEN MOTOR KARAKTERİSTİĞİ ---
+    let grav = 65; // Yük sabit (Rover) olduğu için yerçekimi sabittir
+    this.rkt.body.setGravityY(grav);
+
+    // Kimyasal motor havayı/boşluğu tutar (yüksek sürtünme, çabuk durur), Hibrit kaygandır (düşük sürtünme)
+    let dragVal = this.engine === 'KİMYASAL' ? 25 : 2; 
+    this.rkt.body.setDrag(dragVal, 0);
+
+    this.rkt.body.setGravityY(55); 
+    this.rkt.body.setDrag(8, 0); 
+
+    this.flm = this.add.image(this.rkt.x, this.rkt.y+82, 'flame').setScale(1.6).setVisible(false);
+
+    this.physics.add.collider(this.rkt, this.terrainGrp, this.handleTerrainCrash, null, this);
+    this.physics.add.collider(this.rkt, this.padGrp, this.handleLanding, null, this);
+
+    this.buildHUD(w, h);
+    
+    this.add.text(w/2, 28, 'BÖLÜM 4  ·  AY\'A İNİŞ', {fontFamily:'Orbitron,monospace',fontSize:'13px',color:'#00ff88',letterSpacing:5}).setOrigin(.5);
+    const hint = this.add.text(w/2, h*.92, 'RADARI AÇMAK İÇİN [R] TUŞUNA BAS (Yakıt Harcar)\nDikkat: Ay yüzeyinde çekim anomalisi rüzgarları var!', {fontFamily:'Exo 2',fontSize:'12px',color:'#6a8aaa', align: 'center', lineSpacing: 5}).setOrigin(.5);
+    this.time.delayedCall(7000, () => hint.destroy());
+
+    this.cursors = this.input.keyboard.createCursorKeys();
+    this.wasd = this.input.keyboard.addKeys({left:'A', right:'D', up:'W', radar:'R'});
+    
+    // YENİ EKLENEN: Ay Rüzgarları / Anomalileri
+    this.time.addEvent({
+      delay: 2500, loop: true,
+      callback: () => {
+        if(!this.landed && this.rkt.y > 200) {
+           let force = Phaser.Math.Between(-60, 60);
+           this.rkt.body.velocity.x += force;
+        }
+      }
+    });
+
+    this.cameras.main.fadeIn(800, 0, 0, 0);
+  }
+
+  drawRuggedTerrain(w, h) {
+    const terrain = this.add.graphics();
+    terrain.lineStyle(2, 0x8a9aaa, 1);
+    terrain.fillStyle(0x3a4a55, 1);
+
+    const points = [];
+    const step = 20; 
+    let currentY = h * 0.75;
+
+    points.push({x: 0, y: h}); 
+
+    for (let x = 0; x <= w; x += step) {
+      if (x >= this.targetPad.x - this.padWidth / 2 && x <= this.targetPad.x + this.padWidth / 2) {
+        currentY = this.targetPad.y;
+      } else {
+        currentY += Phaser.Math.Between(-35, 35);
+        currentY = Phaser.Math.Clamp(currentY, h * 0.55, h * 0.9);
+      }
+      points.push({x: x, y: currentY});
+    }
+
+    points.push({x: w, y: h}); 
+
+    terrain.beginPath();
+    terrain.moveTo(points[0].x, points[0].y);
+    for (let i = 1; i < points.length; i++) {
+      terrain.lineTo(points[i].x, points[i].y);
+    }
+    terrain.closePath();
+    terrain.fillPath();
+    terrain.strokePath();
+
+    let pBody = this.add.rectangle(this.targetPad.x, this.targetPad.y + 10, this.padWidth, 20, 0x000000, 0);
+    this.padGrp.add(pBody);
+
+    // YENİ EKLENEN: Radarı bekleyen görünmez iniş bölgesi efekti
+    this.padVisual = this.add.graphics();
+    this.padVisual.lineStyle(3, 0x00ff88, 0.7);
+    this.padVisual.lineBetween(this.targetPad.x - this.padWidth/2, this.targetPad.y, this.targetPad.x + this.padWidth/2, this.targetPad.y);
+    this.padVisual.fillStyle(0x00ff88, 0.1);
+    this.padVisual.fillRect(this.targetPad.x - this.padWidth/2, this.targetPad.y, this.padWidth, 15);
+    this.padVisual.setAlpha(0); // Radar açılana kadar görünmez!
+
+    this.padText = this.add.text(this.targetPad.x, this.targetPad.y + 35, 'HEDEF BÖLGE\n' + this.targetPad.name, {fontFamily:'Orbitron,monospace',fontSize:'9px',color:'#00ff88', align:'center', letterSpacing:1}).setOrigin(.5);
+    this.padText.setAlpha(0); // Görünmez
+
+    for (let i = 0; i < points.length - 2; i++) {
+      let p1 = points[i];
+      let p2 = points[i+1];
+      
+      if (p1.y === this.targetPad.y && p2.y === this.targetPad.y) continue;
+      
+      let midX = (p1.x + p2.x) / 2;
+      let midY = (p1.y + p2.y) / 2;
+      let rect = this.add.rectangle(midX, midY + (h - midY)/2, step + 2, h - midY, 0x000000, 0);
+      this.terrainGrp.add(rect);
+    }
+  }
+
+  buildHUD(w, h){
+    hudPanel(this, 16, 16, 210, 160);
+    this.add.text(28, 30, 'İNİŞ BİLGİSAYARI', {fontFamily:'Orbitron,monospace',fontSize:'9px',color:'#00ff88',letterSpacing:2});
+    
+    this.add.text(28, 50, 'Dikey Hız (Vy):', {fontFamily:'Exo 2',fontSize:'11px',color:'#6a8aaa'});
+    this.vyD = this.add.text(28, 64, '-- m/s', {fontFamily:'Orbitron,monospace',fontSize:'15px',color:'#e8f0f5'});
+    
+    this.add.text(28, 88, 'Yatay Hız (Vx):', {fontFamily:'Exo 2',fontSize:'11px',color:'#6a8aaa'});
+    this.vxD = this.add.text(28, 102, '-- m/s', {fontFamily:'Orbitron,monospace',fontSize:'15px',color:'#e8f0f5'});
+    
+    this.add.text(28, 126, 'Kalan Yakıt:', {fontFamily:'Exo 2',fontSize:'11px',color:'#6a8aaa'});
+    this.fuelD = this.add.text(28, 140, Math.round(this.fuel)+'%', {fontFamily:'Orbitron,monospace',fontSize:'14px',color:'#00ff88'});
+  }
+
+  update(t, delta){
+    if(!this.activeControll || this.landed) return;
+    const dt = delta/1000;
+
+    // YENİ EKLENEN: Radar Mantığı (R tuşu)
+    if (this.wasd.radar.isDown && !this.radarActive && this.fuel > 5) {
+        this.radarActive = true;
+        this.fuel -= 5; // Radar 5 birim yakıt yer
+        this.tweens.add({targets: [this.padVisual, this.padText], alpha: 1, duration: 1000});
+        this.cameras.main.flash(500, 0, 255, 136, 0.2); // Yeşil flaş
+    }
+
+    if(this.fuel > 0) {
+      // --- YENİ EKLENEN MOTOR KARAKTERİSTİĞİ ---
+      let upPower = this.engine === 'KİMYASAL' ? -250 : -190; // Kimyasalın dikey gücü yüksektir
+      let upFuel = this.engine === 'KİMYASAL' ? 8.5 : 4.5;
+      
+      if (this.cursors.up.isDown || this.wasd.up.isDown) {
+        this.rkt.body.setAccelerationY(upPower); 
+        this.fuel -= dt * upFuel; 
+        this.flm.setVisible(true);
+        this.flm.setScale(1.8);
+      } else {
+        this.rkt.body.setAccelerationY(0);
+        this.flm.setVisible(false);
+      }
+
+      let horizPower = this.engine === 'HİBRİT' ? 140 : 80; // Hibritin yatay tepkisi aşırıdır
+      let horizFuel = this.engine === 'HİBRİT' ? 1.5 : 3.5;
+
+      if (this.cursors.left.isDown || this.wasd.left.isDown) {
+        this.rkt.body.setAccelerationX(-horizPower);
+        this.fuel -= dt * horizFuel;
+      } else if (this.cursors.right.isDown || this.wasd.right.isDown) {
+        this.rkt.body.setAccelerationX(horizPower);
+        this.fuel -= dt * horizFuel;
+      } else {
+        this.rkt.body.setAccelerationX(0); 
+      }
+    } else {
+      this.rkt.body.setAcceleration(0, 0);
+      this.flm.setVisible(false);
+    }
+
+    this.flm.x = this.rkt.x;
+    this.flm.y = this.rkt.y + 82;
+
+    const vy = this.rkt.body.velocity.y;
+    const vx = this.rkt.body.velocity.x;
+
+    this.vyD.setText(Math.abs(vy).toFixed(1) + ' m/s').setColor(vy > 35 ? '#ff4444' : vy > 18 ? '#f0c040' : '#00ff88');
+    this.vxD.setText(Math.abs(vx).toFixed(1) + ' m/s').setColor(Math.abs(vx) > 12 ? '#ff4444' : '#00ff88');
+    
+    this.fuelD.setText(Math.max(0, this.fuel).toFixed(1) + '%');
+    if(this.fuel < 15) this.fuelD.setColor('#ff4444');
+  }
+
+  handleTerrainCrash(rocket, terrain) {
+    if(this.landed) return;
+    this.crash('TEPEDE PARÇALANDI!\nKraterli ve engebeli araziye çarptın.\nSadece düz platforma inmelisin.');
+  }
+
+  handleLanding(rocket, pad) {
+    if(this.landed) return;
+    this.landed = true;
+    this.rkt.body.setAcceleration(0, 0);
+    this.flm.setVisible(false);
+
+    const vy = this.rkt.body.velocity.y;
+    const vx = Math.abs(this.rkt.body.velocity.x);
+
+    if (vy > 35) {
+      this.crash('ŞİDDETLİ ÇARPIŞMA!\nPlatforma dokundun ama hızın çok yüksekti.\n(Maks Dikey: 35 m/s)');
+      return;
+    } 
+    if (vx > 12) {
+      this.crash('KONTROLSÜZ İNİŞ!\nYatay kayma çok fazlaydı, roket devrildi.\n(Maks Yatay: 12 m/s)');
+      return;
+    }
+
+    const distFromCenter = Math.abs(this.rkt.x - this.targetPad.x);
+    let perfect = distFromCenter < 15; 
+    
+    let penalty = 0;
+    let landingMsg = perfect ? "KUSURSUZ İNİŞ (TAM MERKEZ)" : "BAŞARILI İNİŞ (RİSKLİ BÖLGE)";
+
+    if (!perfect) {
+      penalty = 30; 
+      this.fuel -= penalty;
+      const flash = this.add.rectangle(this.scale.width/2, this.scale.height/2, this.scale.width, this.scale.height, 0xff2200, 0.5);
+      this.tweens.add({targets: flash, alpha: 0, duration: 600, onComplete: () => flash.destroy()});
+    }
+
+    if (this.fuel < 0) {
+      this.fuel = 0;
+      this.crash(`YETERSİZ KAYNAK!\nPlatforma indin ama merkezin dışına çıktın.\nUygulanan ${penalty}% ceza yakıtını tüketti.\nGörev tamamlanamadı.`);
+      return;
+    }
+
+    this.success(perfect, landingMsg);
+  }
+
+  crash(msg){
+    this.activeControll = false;
+    this.landed = true; 
+    this.rkt.setVelocity(0,0);
+    this.cameras.main.shake(700, 0.04);
+    
+    const flash = this.add.circle(this.rkt.x, this.rkt.y, 80, 0xff2200, 0.8);
+    this.tweens.add({targets: flash, scale: 3.5, alpha: 0, duration: 550});
+    this.rkt.setVisible(false);
+
+    const w = this.scale.width, h = this.scale.height;
+    this.time.delayedCall(1000, () => {
+      const g = this.add.graphics();
+      g.fillStyle(0x1a0000, .94); g.fillRoundedRect(w/2-250, h/2-110, 500, 220, 10);
+      g.lineStyle(2, 0xff2200); g.strokeRoundedRect(w/2-250, h/2-110, 500, 220, 10);
+
+      this.add.text(w/2, h/2-70, 'GÖREV BAŞARISIZ', {fontFamily:'Orbitron,monospace',fontSize:'22px',color:'#ff2200',letterSpacing:4}).setOrigin(.5);
+      this.add.text(w/2, h/2-15, msg, {fontFamily:'Exo 2',fontSize:'15px',color:'#ffaaaa', align: 'center', lineSpacing: 9}).setOrigin(.5);
+
+      const r = this.add.text(w/2, h/2+75, '[ YENİDEN DENE ]', {fontFamily:'Orbitron,monospace',fontSize:'14px',color:'#00ff88',letterSpacing:3}).setOrigin(.5).setInteractive({useHandCursor:true});
+      r.on('pointerdown', () => fadeNext(this, 'LaunchScene'));
+    });
+  }
+
+  success(perfect, msgLine){
+    this.activeControll = false;
+    this.rkt.setVelocity(0,0);
+    this.rkt.body.setGravityY(0); 
+    
+    const w = this.scale.width, h = this.scale.height;
+    this.time.delayedCall(1200, () => {
+      const g = this.add.graphics();
+      g.fillStyle(0x001a08, .97); g.fillRoundedRect(w/2-300, h/2-140, 600, 280, 12);
+      g.lineStyle(2, 0x00ff88); g.strokeRoundedRect(w/2-300, h/2-140, 600, 280, 12);
+      g.lineStyle(1, 0x00ff88, .2); g.lineBetween(w/2-270, h/2-75, w/2+270, h/2-75);
+      
+      this.add.text(w/2, h/2-110, 'TÜRKİYE AY\'DA!', {fontFamily:'Orbitron,monospace',fontSize:'28px',fontStyle:'bold',color:'#00ff88',letterSpacing:8}).setOrigin(.5);
+      this.add.text(w/2, h/2-70, msgLine, {fontFamily:'Exo 2',fontSize:'17px',color:perfect ? '#f0c040' : '#ff4444'}).setOrigin(.5);
+      
+      this.add.text(w/2, h/2-42, '──── GÖREV TAMAMLANDI ────', {fontFamily:'Exo 2',fontSize:'11px',color:'#3a5a7a',letterSpacing:3}).setOrigin(.5);
+      this.add.text(w/2, h/2-18, 'Milli Uzay Programı hedefleri doğrultusunda Türkiye\nAy yüzeyine başarıyla araç indirdi.', {fontFamily:'Exo 2',fontSize:'13px',color:'#b8c4cc', align:'center', lineSpacing: 5}).setOrigin(.5);
+      
+      let statusCol = this.fuel > 20 ? '#00ff88' : '#f0c040';
+      this.add.text(w/2, h/2+32, 'Kalan Yakıt: %' + Math.max(0, this.fuel).toFixed(1) + '  |  Gövde Durumu: %' + this.heat, {fontFamily:'Exo 2',fontSize:'13px',color:statusCol}).setOrigin(.5);
+      
+      const next = this.add.text(w/2, h/2+100, '[ ANA MENÜYE DÖN ]', {fontFamily:'Orbitron,monospace',fontSize:'14px',color:'#00ff88',letterSpacing:2}).setOrigin(.5).setInteractive({useHandCursor:true});
+      this.tweens.add({targets: next, alpha: .35, duration: 650, yoyo: true, repeat: -1});
+      next.on('pointerdown', () => fadeNext(this, 'MenuScene'));
+
+      for(let i=0; i<30; i++){
+        const px = Phaser.Math.Between(w/2-280, w/2+280), py = h/2-130;
+        const dot = this.add.circle(px, py, Phaser.Math.Between(2,5), Phaser.Math.RND.pick([0x00ff88, 0xf0c040, 0xE30A17, 0xffffff]));
+        this.tweens.add({targets: dot, y: py+Phaser.Math.Between(90,190), alpha: 0, duration: Phaser.Math.Between(1000,2100), delay: Phaser.Math.Between(0,600)});
+      }
+    });
+  }
+}
+
+/* ── GAME CONFIG ──────────────────────────────────────────── */
+new Phaser.Game({
+  type:Phaser.AUTO,
+  width:1280,height:720,
+  parent:'game-container',
+  backgroundColor:'#020408',
+  scale:{mode:Phaser.Scale.FIT,autoCenter:Phaser.Scale.CENTER_BOTH},
+  physics:{default:'arcade',arcade:{gravity:{y:0},debug:false}},
+  scene:[BootScene,MenuScene,LaunchScene,AtmosphereScene,SpaceScene,MoonLandingScene]
+});
+</script>
+</body>
+</html>

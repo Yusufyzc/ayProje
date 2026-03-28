@@ -389,6 +389,7 @@ class AtmosphereScene extends Phaser.Scene {
     this.alt = 0; 
     this.dead = false; 
     this.done = false;
+    this.autoFuelTimer = 0;
     
 
     // YENİ: Dinamik Uzay Çöpü (Debris) Kaplaması Oluşturma
@@ -498,6 +499,16 @@ class AtmosphereScene extends Phaser.Scene {
   update(t,delta){
     if(this.dead||this.done) return;
     const w=this.scale.width,h=this.scale.height,dt=delta/1000;
+    this.autoFuelTimer += dt;
+    if (this.autoFuelTimer >= 5.0) {
+        this.fuel -= 1;
+        this.autoFuelTimer = 0;
+        
+        // Oyuncuya yakıtın azaldığını hissettirmek için barda ufak bir parlama efekti
+        if(this.fuelBarA) {
+            this.tweens.add({ targets: this.fuelBarA, alpha: 0.4, duration: 150, yoyo: true });
+        }
+    }
 
     // Temel irtifa artışı
     this.alt += dt * 25;
@@ -621,6 +632,8 @@ class SpaceScene extends Phaser.Scene {
     
     this.inSafeZone = false; 
 
+    this.autoFuelTimer = 0;
+
     if(!this.textures.exists('meteor')){
       const g = this.make.graphics({x:0,y:0,add:false});
       g.fillStyle(0x554444); g.fillCircle(15,15,15);
@@ -728,6 +741,19 @@ class SpaceScene extends Phaser.Scene {
   update(t,delta){
     if(this.dead || this.done) return;
     const w=this.scale.width,h=this.scale.height,dt=delta/1000;
+
+    if (!this.inSafeZone) {
+    this.autoFuelTimer += dt;
+    if (this.autoFuelTimer >= 5.0) {
+            this.fuel -= 1;
+            this.autoFuelTimer = 0;
+
+            // Oyuncuya yakıtın azaldığını hissettirmek için metinde ufak bir büyüme efekti
+            if(this.fuelTxt) {
+                this.tweens.add({ targets: this.fuelTxt, scale: 1.15, duration: 150, yoyo: true });
+            }
+        }
+    }
 
     this.starGroup.children.iterate((star) => {
       star.x -= 150 * dt * star.scale;
